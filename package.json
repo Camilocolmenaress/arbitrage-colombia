@@ -1,8 +1,12 @@
 {
   "name": "arbitrage-colombia",
   "version": "1.0.0",
+  "private": true,
   "description": "3-agent arbitrage system: MercadoLibre → Facebook Marketplace Bucaramanga",
   "main": "cron/scheduler.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node cron/scheduler.js",
     "test": "jest",

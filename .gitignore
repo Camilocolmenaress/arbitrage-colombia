@@ -3,3 +3,14 @@ node_modules/
 CLAUDE.local.md
 logs/
 *.log
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Test output
+coverage/
+
+# Editor
+.vscode/
+.idea/
