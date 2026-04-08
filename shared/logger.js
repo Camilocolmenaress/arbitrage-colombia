@@ -4,9 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const logsDir = path.join(process.cwd(), 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
-}
+fs.mkdirSync(logsDir, { recursive: true }); // idempotent — safe to call even if dir exists
 
 const logger = createLogger({
   level: process.env.LOG_LEVEL || 'info',

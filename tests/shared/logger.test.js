@@ -4,9 +4,10 @@ describe('logger', () => {
   let logger;
 
   beforeAll(() => {
-    // Prevent winston from writing to disk during tests
     process.env.LOG_LEVEL = 'error';
     logger = require('../../shared/logger');
+    // Silence all transports to prevent disk writes and console noise during tests
+    logger.transports.forEach(t => { t.silent = true; });
   });
 
   test('exports info, warn, error methods', () => {
