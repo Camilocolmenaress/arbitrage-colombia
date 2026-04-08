@@ -51,3 +51,40 @@ describe('trend-spotter/sources/google-trends', () => {
     expect(logger.warn).toHaveBeenCalled();
   });
 });
+
+jest.mock('../../shared/ml-client');
+
+describe('trend-spotter/sources/mercadolibre', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+  });
+
+  test('getTrendingFromML returns array of {nombre, score} objects', async () => {
+    const { searchProducts: sp } = require('../../shared/ml-client');
+    sp.mockResolvedValue([
+      { title: 'Audífonos Bluetooth', sold_quantity: 320, id: 'MCO1' },
+      { title: 'Termo Stanley', sold_quantity: 210, id: 'MCO2' }
+    ]);
+
+    const { getTrendingFromML } = require('../../agents/trend-spotter/sources/mercadolibre');
+    const results = await getTrendingFromML('audífonos');
+
+    expect(results).toHaveLength(2);
+    expect(results[0]).toHaveProperty('nombre');
+    expect(results[0]).toHaveProperty('score');
+    expect(results[0].score).toBe(320);
+  });
+
+  test('returns empty array on ML error', async () => {
+    const { searchProducts: sp } = require('../../shared/ml-client');
+    const logger = require('../../shared/logger');
+    sp.mockRejectedValue(new Error('ML API down'));
+
+    const { getTrendingFromML } = require('../../agents/trend-spotter/sources/mercadolibre');
+    const results = await getTrendingFromML('zapatos');
+
+    expect(results).toEqual([]);
+    expect(logger.warn).toHaveBeenCalled();
+  });
+});
