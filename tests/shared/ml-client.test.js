@@ -5,8 +5,6 @@ jest.mock('../../shared/logger', () => ({
   error: jest.fn()
 }));
 
-const axios = require('axios');
-
 describe('ml-client', () => {
   beforeEach(() => {
     jest.resetModules();
@@ -18,6 +16,7 @@ describe('ml-client', () => {
 
   describe('searchProducts', () => {
     test('returns only items under MAX_PRECIO_COMPRA', async () => {
+      const axios = require('axios');
       axios.get.mockResolvedValue({
         data: {
           results: [
@@ -35,6 +34,7 @@ describe('ml-client', () => {
     });
 
     test('excludes forbidden categories', async () => {
+      const axios = require('axios');
       axios.get.mockResolvedValue({
         data: {
           results: [
@@ -52,6 +52,7 @@ describe('ml-client', () => {
     });
 
     test('calls ML API with correct params', async () => {
+      const axios = require('axios');
       axios.get.mockResolvedValue({ data: { results: [] } });
 
       const { searchProducts } = require('../../shared/ml-client');
@@ -70,6 +71,7 @@ describe('ml-client', () => {
     });
 
     test('throws and logs on API error', async () => {
+      const axios = require('axios');
       const logger = require('../../shared/logger');
       axios.get.mockRejectedValue(new Error('Network error'));
 
@@ -81,6 +83,7 @@ describe('ml-client', () => {
 
   describe('getItemDetails', () => {
     test('returns item data for a valid ID', async () => {
+      const axios = require('axios');
       axios.get.mockResolvedValue({
         data: { id: 'MCO12345', title: 'Tenis Nike', price: 90000 }
       });
