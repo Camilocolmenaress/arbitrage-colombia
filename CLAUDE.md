@@ -56,6 +56,14 @@ trending_products  ─┐
 evergreen_products ─┘
 ```
 
+## REGLA AUTOMÁTICA — Actualización continua
+
+Después de cada tarea completada, cada cambio de arquitectura, cada decisión técnica, o cada actualización al código, actualizar automáticamente:
+- **CLAUDE.md**: contexto general del proyecto (este archivo)
+- **memory.md** (si existe): estado actual, qué se completó, qué falta, decisiones tomadas y por qué
+
+No esperar instrucción del usuario para hacer esto. Es obligatorio después de cada acción significativa.
+
 ## IMPORTANTE
 
 Ante cualquier problema de planificación, estructura o decisión de arquitectura, usar
