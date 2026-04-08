@@ -12,8 +12,6 @@ jest.mock('../../shared/logger', () => ({
   error: jest.fn()
 }));
 
-const TelegramBot = require('node-telegram-bot-api');
-
 describe('telegram', () => {
   beforeEach(() => {
     jest.resetModules();

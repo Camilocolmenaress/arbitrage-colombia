@@ -6,6 +6,9 @@ let bot = null;
 
 function getBot() {
   if (!bot) {
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      throw new Error('TELEGRAM_BOT_TOKEN is not set');
+    }
     bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
   }
   return bot;
