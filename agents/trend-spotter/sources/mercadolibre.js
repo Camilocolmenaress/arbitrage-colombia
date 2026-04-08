@@ -26,12 +26,10 @@ async function getTrendingFromML(keyword) {
 }
 
 async function getAllMLTrending() {
-  const allResults = [];
-  for (const keyword of SEED_KEYWORDS) {
-    const results = await getTrendingFromML(keyword);
-    allResults.push(...results);
-  }
-  return allResults;
+  const settled = await Promise.allSettled(SEED_KEYWORDS.map(kw => getTrendingFromML(kw)));
+  return settled
+    .filter(r => r.status === 'fulfilled')
+    .flatMap(r => r.value);
 }
 
 module.exports = { getTrendingFromML, getAllMLTrending };

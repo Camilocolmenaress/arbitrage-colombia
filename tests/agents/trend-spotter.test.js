@@ -133,4 +133,25 @@ describe('trend-spotter/index', () => {
     const { run } = require('../../agents/trend-spotter/index');
     await expect(run()).resolves.not.toThrow();
   });
+
+  test('run() returns early without inserting when all sources return empty', async () => {
+    jest.doMock('../../agents/trend-spotter/sources/google-trends', () => ({
+      getTrendingProducts: jest.fn().mockResolvedValue([])
+    }));
+    jest.doMock('../../agents/trend-spotter/sources/mercadolibre', () => ({
+      getAllMLTrending: jest.fn().mockResolvedValue([])
+    }));
+
+    const { run } = require('../../agents/trend-spotter/index');
+    await run();
+
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  test('run() throws when Supabase insert returns an error', async () => {
+    mockInsert.mockResolvedValueOnce({ error: { message: 'DB constraint violation' } });
+
+    const { run } = require('../../agents/trend-spotter/index');
+    await expect(run()).rejects.toThrow('DB constraint violation');
+  });
 });
