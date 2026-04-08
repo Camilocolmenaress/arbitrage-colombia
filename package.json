@@ -1,0 +1,30 @@
+{
+  "name": "arbitrage-colombia",
+  "version": "1.0.0",
+  "description": "3-agent arbitrage system: MercadoLibre → Facebook Marketplace Bucaramanga",
+  "main": "cron/scheduler.js",
+  "scripts": {
+    "start": "node cron/scheduler.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "trends": "node agents/trend-spotter/index.js",
+    "evergreen": "node agents/evergreen-validator/index.js",
+    "gaps": "node agents/gap-finder/index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "axios": "^1.8.4",
+    "dotenv": "^16.5.0",
+    "google-trends-api": "^4.9.2",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"]
+  }
+}
