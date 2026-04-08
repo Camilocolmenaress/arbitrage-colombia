@@ -88,3 +88,49 @@ describe('trend-spotter/sources/mercadolibre', () => {
     expect(logger.warn).toHaveBeenCalled();
   });
 });
+
+describe('trend-spotter/index', () => {
+  const mockInsert = jest.fn().mockResolvedValue({ error: null });
+  const mockFrom = jest.fn(() => ({ insert: mockInsert }));
+
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    mockInsert.mockResolvedValue({ error: null });
+
+    jest.doMock('../../agents/trend-spotter/sources/google-trends', () => ({
+      getTrendingProducts: jest.fn().mockResolvedValue([{ nombre: 'Tenis Nike', score: 50000 }])
+    }));
+    jest.doMock('../../agents/trend-spotter/sources/mercadolibre', () => ({
+      getAllMLTrending: jest.fn().mockResolvedValue([{ nombre: 'Audífonos JBL', score: 200 }])
+    }));
+    jest.doMock('../../shared/supabase', () => ({
+      getClient: jest.fn().mockReturnValue({ from: mockFrom })
+    }));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('run() inserts merged results into trending_products', async () => {
+    const { run } = require('../../agents/trend-spotter/index');
+    await run();
+
+    expect(mockFrom).toHaveBeenCalledWith('trending_products');
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ nombre: expect.any(String), fuente: expect.any(String) })
+      ])
+    );
+  });
+
+  test('run() does not throw if one source returns empty', async () => {
+    jest.doMock('../../agents/trend-spotter/sources/google-trends', () => ({
+      getTrendingProducts: jest.fn().mockResolvedValue([])
+    }));
+
+    const { run } = require('../../agents/trend-spotter/index');
+    await expect(run()).resolves.not.toThrow();
+  });
+});
