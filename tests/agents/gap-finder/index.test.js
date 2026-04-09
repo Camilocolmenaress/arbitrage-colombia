@@ -51,12 +51,18 @@ describe('gap-finder/index', () => {
     expect(analyzeProduct).toHaveBeenCalledWith('Mochila Totto');
   });
 
-  test('run() calls notify for each gap found', async () => {
+  test('run() calls notify for each gap found with correct fuente', async () => {
     const { run } = require('../../../agents/gap-finder/index');
     await run();
 
     const { notify } = require('../../../agents/gap-finder/notifier');
     expect(notify).toHaveBeenCalledTimes(2);
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({ nombre: 'Audífonos JBL', fuente: 'trending' })
+    );
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({ nombre: 'Mochila Totto', fuente: 'evergreen' })
+    );
   });
 
   test('run() skips products where analyzeProduct returns null', async () => {

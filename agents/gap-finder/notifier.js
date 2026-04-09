@@ -38,9 +38,13 @@ async function notify(gap) {
   }
 
   const message = buildAlertMessage(gap);
-  await sendAlert(message);
-
-  logger.info('Gap alert sent', { nombre: gap.nombre, gap: gap.gap_porcentaje });
+  try {
+    await sendAlert(message);
+    logger.info('Gap alert sent', { nombre: gap.nombre, gap: gap.gap_porcentaje });
+  } catch (err) {
+    // DB row already saved — Telegram failure is non-fatal; don't abort the run loop
+    logger.warn('notify: Telegram alert failed (gap saved to DB)', { nombre: gap.nombre, error: err.message });
+  }
 }
 
 module.exports = { notify };

@@ -59,6 +59,21 @@ describe('gap-finder/notifier', () => {
     expect(message).toContain('http://ml.co/item/1');
   });
 
+  test('notify() inserts to DB before sending Telegram alert', async () => {
+    const callOrder = [];
+    mockInsert.mockImplementation(async () => {
+      callOrder.push('db');
+      return { error: null };
+    });
+    const { sendAlert } = require('../../../shared/telegram');
+    sendAlert.mockImplementation(async () => { callOrder.push('telegram'); });
+
+    const { notify } = require('../../../agents/gap-finder/notifier');
+    await notify(sampleGap);
+
+    expect(callOrder).toEqual(['db', 'telegram']);
+  });
+
   test('notify() throws if Supabase insert fails', async () => {
     mockInsert.mockResolvedValueOnce({ error: { message: 'DB error' } });
 

@@ -14,9 +14,9 @@ async function analyzeProduct(nombre) {
       return null;
     }
 
-    const prices = items.map(i => i.price).sort((a, b) => a - b);
-    const precioCompra = prices[0];
-    const precioPromedio = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const cheapestItem = items.reduce((min, i) => i.price < min.price ? i : min);
+    const precioCompra = cheapestItem.price;
+    const precioPromedio = items.reduce((s, i) => s + i.price, 0) / items.length;
     const gapPorcentaje = parseFloat(
       (((precioPromedio - precioCompra) / precioCompra) * 100).toFixed(2)
     );
@@ -24,8 +24,6 @@ async function analyzeProduct(nombre) {
     if (gapPorcentaje < MIN_GAP) {
       return null;
     }
-
-    const cheapestItem = items.find(i => i.price === precioCompra);
 
     const gap = {
       nombre,
