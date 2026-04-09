@@ -18,7 +18,7 @@ Logs: `~/Library/Logs/arbitrage-colombia.log`
 
 - Node.js 20+ · CommonJS
 - Supabase (base de datos compartida entre agentes)
-- MercadoLibre API con OAuth2 (authorization_code — `scripts/ml-auth.js` para setup inicial)
+- MercadoLibre: Playwright web scraping de listado.mercadolibre.com.co (NO la API — bloqueada en abril 2025)
 - google-trends-api (tendencias Colombia)
 - node-telegram-bot-api (alertas)
 - node-cron (schedules)
@@ -81,7 +81,7 @@ No esperar instrucción del usuario para hacer esto. Es obligatorio después de 
 | Phase 2 — Evergreen Validator | Tasks 11-13 | ✅ COMPLETA (31/31 tests) |
 | Phase 2 — Gap Finder | Tasks 14-16 | ✅ COMPLETA (42/42 tests) |
 | Phase 3 — Cron + PM2 | Tasks 17-19 | ✅ COMPLETA |
-| OAuth2 ML auth (authorization_code) | — | ✅ COMPLETA (46/46 tests) |
+| Playwright web scraper (reemplaza API) | — | ✅ COMPLETA (42/42 tests) |
 | macOS launchd migration | — | ✅ COMPLETA |
 
 ### Decisiones técnicas adicionales (Phase 2)
@@ -93,6 +93,11 @@ No esperar instrucción del usuario para hacer esto. Es obligatorio después de 
 - `notifier.js`: fallo de Telegram después de DB exitoso es no-fatal (warn, no throw) — evita abortar el loop del Gap Finder
 - Fórmula de gap: `((promedio - minimo) / promedio) * 100` — qué tan por debajo del promedio de mercado está el vendedor más barato
 - No hay límite de alertas — se envían TODAS las que pasen el filtro de 50%
+- ML data source: Playwright web scraping de listado.mercadolibre.com.co — NOT the API. Reason: ML blocked API access in April 2025
+- `SCRAPE_DELAY_MS` env var: si se define, sobreescribe el delay aleatorio en scraping (0 en tests, vacío en producción = 1500-3000ms)
+- `shared/env-writer.js` y `scripts/ml-auth.js` eliminados — ya no se necesitan sin OAuth
+- `sold_quantity` no disponible en scraping: `score = 0` en trend-spotter, `ventas_historicas = 0` en evergreen-validator
+- SEED_KEYWORDS y EVERGREEN_KEYWORDS actualizados: 15 keywords orientados a arbitraje (igual en ambos agentes)
 
 ## IMPORTANTE
 

@@ -18,7 +18,6 @@ The Gap Finder reads from both tables, finds products where the cheapest ML list
 
 - Node.js 20+
 - macOS (launchd)
-- A MercadoLibre app with OAuth2 credentials
 - A Telegram bot and chat ID
 - A Supabase project with the schema from `scripts/setup-db.sql`
 
@@ -46,9 +45,9 @@ SUPABASE_URL
 SUPABASE_KEY
 TELEGRAM_BOT_TOKEN
 TELEGRAM_CHAT_ID
-ML_CLIENT_ID
-ML_CLIENT_SECRET
 ```
+
+> MercadoLibre data is scraped directly — no API credentials required.
 
 **3. Initialize the database**
 
