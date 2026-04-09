@@ -18,6 +18,8 @@ describe('ml-client (Playwright scraper)', () => {
 
     mockPage = {
       goto: jest.fn().mockResolvedValue(null),
+      waitForLoadState: jest.fn().mockResolvedValue(null),
+      title: jest.fn().mockResolvedValue('MercadoLibre Colombia'),
       waitForSelector: jest.fn().mockResolvedValue(null),
       $$eval: jest.fn().mockResolvedValue([]),
       evaluate: jest.fn().mockResolvedValue('<div>debug html</div>'),
@@ -33,7 +35,7 @@ describe('ml-client (Playwright scraper)', () => {
     playwright.chromium.launch.mockResolvedValue(mockBrowser);
   });
 
-  test('navigates to correct ML Colombia URL for query', async () => {
+  test('navigates to encoded listado.mercadolibre.com.co URL', async () => {
     const { searchProducts } = require('../../shared/ml-client');
     await searchProducts('audífonos bluetooth');
 
@@ -42,27 +44,36 @@ describe('ml-client (Playwright scraper)', () => {
     );
   });
 
-  test('waits for li.ui-search-layout__item selector', async () => {
+  test('waits for networkidle after page load', async () => {
+    const { searchProducts } = require('../../shared/ml-client');
+    await searchProducts('celular');
+
+    expect(mockPage.waitForLoadState).toHaveBeenCalledWith('networkidle');
+  });
+
+  test('logs page title after navigation', async () => {
+    const logger = require('../../shared/logger');
+    const { searchProducts } = require('../../shared/ml-client');
+    await searchProducts('celular');
+
+    expect(mockPage.title).toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('ML page title:'));
+  });
+
+  test('always saves screenshot to /tmp/ml-debug.png', async () => {
+    const { searchProducts } = require('../../shared/ml-client');
+    await searchProducts('algo');
+
+    expect(mockPage.screenshot).toHaveBeenCalledWith({ path: '/tmp/ml-debug.png' });
+  });
+
+  test('waits for li.ui-search-layout__item with 15s timeout', async () => {
     const { searchProducts } = require('../../shared/ml-client');
     await searchProducts('celular');
 
     expect(mockPage.waitForSelector).toHaveBeenCalledWith(
       'li.ui-search-layout__item',
-      expect.objectContaining({ timeout: 10000 })
-    );
-  });
-
-  test('logs debug HTML and takes screenshot when 0 results returned', async () => {
-    const logger = require('../../shared/logger');
-    const { searchProducts } = require('../../shared/ml-client');
-    // $$eval returns [] by default → triggers debug path
-    await searchProducts('algo');
-
-    expect(mockPage.evaluate).toHaveBeenCalled();
-    expect(mockPage.screenshot).toHaveBeenCalledWith({ path: '/tmp/ml-debug.png' });
-    expect(logger.warn).toHaveBeenCalledWith(
-      'ML scrape: 0 results — debug HTML',
-      expect.objectContaining({ query: 'algo' })
+      expect.objectContaining({ timeout: 15000 })
     );
   });
 
@@ -79,13 +90,15 @@ describe('ml-client (Playwright scraper)', () => {
     expect(results[0]).toEqual({ title: 'Audífonos JBL', price: 80000, link: 'http://ml.co/1' });
   });
 
-  test('returns [] when page has no matching selector (timeout)', async () => {
+  test('returns [] when selector not found on any URL (tries both)', async () => {
+    // Reject on every waitForSelector call → both URLs tried, both fail
     mockPage.waitForSelector.mockRejectedValue(new Error('Timeout'));
 
     const { searchProducts } = require('../../shared/ml-client');
     const results = await searchProducts('xyzproductonexiste');
 
     expect(results).toEqual([]);
+    expect(mockPage.waitForSelector).toHaveBeenCalledTimes(2); // tried both URLs
   });
 
   test('returns [] on browser launch error — never throws', async () => {

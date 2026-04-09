@@ -21,13 +21,35 @@ async function searchProducts(query, options = {}) {
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    const url = `https://listado.mercadolibre.com.co/${encodeURIComponent(query)}`;
-    await page.goto(url);
+    // Try both URL formats — ML Colombia uses different patterns
+    const urls = [
+      `https://listado.mercadolibre.com.co/${encodeURIComponent(query)}`,
+      `https://www.mercadolibre.com.co/`
+    ];
 
-    try {
-      await page.waitForSelector('li.ui-search-layout__item', { timeout: 10000 });
-    } catch {
-      logger.warn('ML scrape: no results found', { query });
+    let selectorFound = false;
+    for (const url of urls) {
+      await page.goto(url);
+      await page.waitForLoadState('networkidle');
+      logger.info('ML page title: ' + await page.title());
+
+      // Always capture page state for debugging
+      try { await page.screenshot({ path: '/tmp/ml-debug.png' }); } catch (_) {}
+
+      try {
+        await page.waitForSelector('li.ui-search-layout__item', { timeout: 15000 });
+        selectorFound = true;
+        break;
+      } catch {
+        logger.warn('ML scrape: selector not found', { url, query });
+      }
+    }
+
+    if (!selectorFound) {
+      try {
+        const bodyHtml = await page.evaluate(() => document.body.innerHTML.substring(0, 500));
+        logger.warn('ML scrape: no results on any URL', { query, html: bodyHtml });
+      } catch (_) {}
       return [];
     }
 
@@ -51,16 +73,6 @@ async function searchProducts(query, options = {}) {
     const results = items
       .filter(item => item.price <= maxPrice)
       .slice(0, 50);
-
-    if (results.length === 0) {
-      try {
-        const bodyHtml = await page.evaluate(() => document.body.innerHTML.substring(0, 500));
-        logger.warn('ML scrape: 0 results — debug HTML', { query, html: bodyHtml });
-        await page.screenshot({ path: '/tmp/ml-debug.png' });
-      } catch (_) {
-        // debug step is best-effort — don't fail the scrape over it
-      }
-    }
 
     logger.info('ML scrape completed', { query, found: results.length });
     return results;
