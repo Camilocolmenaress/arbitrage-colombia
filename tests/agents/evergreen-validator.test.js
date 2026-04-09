@@ -39,3 +39,44 @@ describe('evergreen-validator/sources/mercadolibre', () => {
     expect(logger.warn).toHaveBeenCalled();
   });
 });
+
+jest.mock('google-trends-api');
+
+describe('evergreen-validator/sources/google-trends', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+  });
+
+  test('getTrendStability returns score between 0 and 100 for stable product', async () => {
+    const googleTrends = require('google-trends-api');
+    googleTrends.interestOverTime.mockResolvedValue(JSON.stringify({
+      default: {
+        timelineData: [
+          { value: [80] }, { value: [85] }, { value: [78] },
+          { value: [82] }, { value: [79] }, { value: [83] },
+          { value: [81] }, { value: [84] }, { value: [80] },
+          { value: [82] }, { value: [79] }, { value: [85] }
+        ]
+      }
+    }));
+
+    const { getTrendStability } = require('../../agents/evergreen-validator/sources/google-trends');
+    const score = await getTrendStability('mochila');
+
+    expect(score).toBeGreaterThanOrEqual(0);
+    expect(score).toBeLessThanOrEqual(100);
+  });
+
+  test('returns 0 on Google Trends error', async () => {
+    const googleTrends = require('google-trends-api');
+    const logger = require('../../shared/logger');
+    googleTrends.interestOverTime.mockRejectedValue(new Error('Rate limit'));
+
+    const { getTrendStability } = require('../../agents/evergreen-validator/sources/google-trends');
+    const score = await getTrendStability('algo');
+
+    expect(score).toBe(0);
+    expect(logger.warn).toHaveBeenCalled();
+  });
+});
