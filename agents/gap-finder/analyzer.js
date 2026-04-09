@@ -30,7 +30,7 @@ async function analyzeProduct(nombre) {
       precio_compra: precioCompra,
       precio_promedio: parseFloat(precioPromedio.toFixed(0)),
       gap_porcentaje: gapPorcentaje,
-      link: cheapestItem?.permalink || null
+      link: cheapestItem?.link || null
     };
 
     logger.info('Gap found', gap);

@@ -14,9 +14,9 @@ describe('gap-finder/analyzer', () => {
   test('analyzeProduct returns gap data when gap >= MIN_GAP_PORCENTAJE', async () => {
     const { searchProducts } = require('../../../shared/ml-client');
     searchProducts.mockResolvedValue([
-      { title: 'Audífonos X', price: 30000, permalink: 'http://ml.co/1' },
-      { title: 'Audífonos Y', price: 100000, permalink: 'http://ml.co/2' },
-      { title: 'Audífonos Z', price: 110000, permalink: 'http://ml.co/3' }
+      { title: 'Audífonos X', price: 30000, link: 'http://ml.co/1' },
+      { title: 'Audífonos Y', price: 100000, link: 'http://ml.co/2' },
+      { title: 'Audífonos Z', price: 110000, link: 'http://ml.co/3' }
     ]);
 
     const { analyzeProduct } = require('../../../agents/gap-finder/analyzer');
@@ -32,9 +32,9 @@ describe('gap-finder/analyzer', () => {
   test('analyzeProduct returns null when gap < MIN_GAP_PORCENTAJE', async () => {
     const { searchProducts } = require('../../../shared/ml-client');
     searchProducts.mockResolvedValue([
-      { title: 'Camiseta A', price: 45000, permalink: 'http://ml.co/a' },
-      { title: 'Camiseta B', price: 50000, permalink: 'http://ml.co/b' },
-      { title: 'Camiseta C', price: 55000, permalink: 'http://ml.co/c' }
+      { title: 'Camiseta A', price: 45000, link: 'http://ml.co/a' },
+      { title: 'Camiseta B', price: 50000, link: 'http://ml.co/b' },
+      { title: 'Camiseta C', price: 55000, link: 'http://ml.co/c' }
     ]);
 
     const { analyzeProduct } = require('../../../agents/gap-finder/analyzer');
@@ -47,7 +47,7 @@ describe('gap-finder/analyzer', () => {
   test('analyzeProduct returns null when fewer than 2 results', async () => {
     const { searchProducts } = require('../../../shared/ml-client');
     searchProducts.mockResolvedValue([
-      { title: 'Producto Raro', price: 30000, permalink: 'http://ml.co/r' }
+      { title: 'Producto Raro', price: 30000, link: 'http://ml.co/r' }
     ]);
 
     const { analyzeProduct } = require('../../../agents/gap-finder/analyzer');
