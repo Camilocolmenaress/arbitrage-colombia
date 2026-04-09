@@ -80,3 +80,66 @@ describe('evergreen-validator/sources/google-trends', () => {
     expect(logger.warn).toHaveBeenCalled();
   });
 });
+
+jest.mock('../../shared/supabase');
+
+describe('evergreen-validator/index', () => {
+  const mockInsert = jest.fn().mockResolvedValue({ error: null });
+  const mockFrom = jest.fn(() => ({ insert: mockInsert }));
+
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    mockInsert.mockResolvedValue({ error: null });
+
+    jest.doMock('../../agents/evergreen-validator/sources/mercadolibre', () => ({
+      getAllEvergreenFromML: jest.fn().mockResolvedValue([
+        { nombre: 'Mochila Totto', ventas_historicas: 400 }
+      ])
+    }));
+    jest.doMock('../../agents/evergreen-validator/sources/google-trends', () => ({
+      getTrendStability: jest.fn().mockResolvedValue(75.5)
+    }));
+    jest.doMock('../../shared/supabase', () => ({
+      getClient: jest.fn().mockReturnValue({ from: mockFrom })
+    }));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('run() inserts rows into evergreen_products with correct schema', async () => {
+    const { run } = require('../../agents/evergreen-validator/index');
+    await run();
+
+    expect(mockFrom).toHaveBeenCalledWith('evergreen_products');
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          nombre: 'Mochila Totto',
+          ventas_historicas: 400,
+          estabilidad_tendencia: 75.5
+        })
+      ])
+    );
+  });
+
+  test('run() returns early without inserting when no ML products found', async () => {
+    jest.doMock('../../agents/evergreen-validator/sources/mercadolibre', () => ({
+      getAllEvergreenFromML: jest.fn().mockResolvedValue([])
+    }));
+
+    const { run } = require('../../agents/evergreen-validator/index');
+    await run();
+
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  test('run() throws when Supabase insert returns an error', async () => {
+    mockInsert.mockResolvedValueOnce({ error: { message: 'DB error' } });
+
+    const { run } = require('../../agents/evergreen-validator/index');
+    await expect(run()).rejects.toThrow('DB error');
+  });
+});
