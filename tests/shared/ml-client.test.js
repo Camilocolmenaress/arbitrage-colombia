@@ -1,191 +1,83 @@
-jest.mock('axios');
-jest.mock('../../shared/env-writer');
+jest.mock('playwright', () => ({
+  chromium: { launch: jest.fn() }
+}));
 jest.mock('../../shared/logger', () => ({
   info: jest.fn(),
   warn: jest.fn(),
   error: jest.fn()
 }));
 
-describe('ml-client', () => {
+describe('ml-client (Playwright scraper)', () => {
+  let mockPage, mockBrowser;
+
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
-    process.env.ML_SITE_ID = 'MCO';
-    process.env.ML_BASE_URL = 'https://api.mercadolibre.com';
     process.env.MAX_PRECIO_COMPRA = '150000';
-    process.env.ML_CLIENT_ID = 'test-client-id';
-    process.env.ML_CLIENT_SECRET = 'test-client-secret';
-    process.env.ML_ACCESS_TOKEN = 'current-access-token';
-    process.env.ML_REFRESH_TOKEN = 'current-refresh-token';
+    process.env.SCRAPE_DELAY_MS = '0'; // disable delay in tests
+
+    mockPage = {
+      goto: jest.fn().mockResolvedValue(null),
+      waitForSelector: jest.fn().mockResolvedValue(null),
+      $$eval: jest.fn().mockResolvedValue([]),
+      close: jest.fn().mockResolvedValue(null)
+    };
+    mockBrowser = {
+      newPage: jest.fn().mockResolvedValue(mockPage),
+      close: jest.fn().mockResolvedValue(null)
+    };
+
+    const playwright = require('playwright');
+    playwright.chromium.launch.mockResolvedValue(mockBrowser);
   });
 
-  describe('Bearer token from env', () => {
-    test('attaches ML_ACCESS_TOKEN as Bearer header to search requests', async () => {
-      const axios = require('axios');
-      axios.get.mockResolvedValue({ data: { results: [] } });
+  test('navigates to correct ML Colombia URL for query', async () => {
+    const { searchProducts } = require('../../shared/ml-client');
+    await searchProducts('audífonos bluetooth');
 
-      const { searchProducts } = require('../../shared/ml-client');
-      await searchProducts('zapatos');
-
-      expect(axios.get).toHaveBeenCalledWith(
-        expect.stringContaining('/search'),
-        expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: 'Bearer current-access-token' })
-        })
-      );
-    });
-
-    test('attaches ML_ACCESS_TOKEN as Bearer header to item requests', async () => {
-      const axios = require('axios');
-      axios.get.mockResolvedValue({ data: { id: 'MCO12345', title: 'Tenis', price: 90000 } });
-
-      const { getItemDetails } = require('../../shared/ml-client');
-      await getItemDetails('MCO12345');
-
-      expect(axios.get).toHaveBeenCalledWith(
-        expect.stringContaining('/items/MCO12345'),
-        expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: 'Bearer current-access-token' })
-        })
-      );
-    });
+    expect(mockPage.goto).toHaveBeenCalledWith(
+      'https://listado.mercadolibre.com.co/aud%C3%ADfonos%20bluetooth'
+    );
   });
 
-  describe('401 auto-refresh', () => {
-    test('on 401, refreshes token and retries with new token', async () => {
-      const axios = require('axios');
-      const error401 = new Error('Unauthorized');
-      error401.response = { status: 401 };
+  test('returns array of { title, price, link } filtered by maxPrice', async () => {
+    mockPage.$$eval.mockResolvedValue([
+      { title: 'Audífonos JBL', price: 80000, link: 'http://ml.co/1' },
+      { title: 'Audífonos Sony', price: 200000, link: 'http://ml.co/2' }
+    ]);
 
-      axios.get
-        .mockRejectedValueOnce(error401)
-        .mockResolvedValueOnce({ data: { results: [] } });
+    const { searchProducts } = require('../../shared/ml-client');
+    const results = await searchProducts('audífonos', { maxPrice: 150000 });
 
-      axios.post.mockResolvedValue({
-        data: { access_token: 'new-access-token', refresh_token: 'new-refresh-token' }
-      });
-
-      const { searchProducts } = require('../../shared/ml-client');
-      const results = await searchProducts('zapatos');
-
-      expect(axios.get).toHaveBeenCalledTimes(2);
-      expect(axios.get).toHaveBeenLastCalledWith(
-        expect.stringContaining('/search'),
-        expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: 'Bearer new-access-token' })
-        })
-      );
-      expect(results).toEqual([]);
-    });
-
-    test('on 401, saves new tokens to .env', async () => {
-      const axios = require('axios');
-      const { updateEnvFile } = require('../../shared/env-writer');
-
-      const error401 = new Error('Unauthorized');
-      error401.response = { status: 401 };
-
-      axios.get
-        .mockRejectedValueOnce(error401)
-        .mockResolvedValueOnce({ data: { results: [] } });
-
-      axios.post.mockResolvedValue({
-        data: { access_token: 'new-access-token', refresh_token: 'new-refresh-token' }
-      });
-
-      const { searchProducts } = require('../../shared/ml-client');
-      await searchProducts('zapatos');
-
-      expect(updateEnvFile).toHaveBeenCalledWith(
-        expect.objectContaining({ ML_ACCESS_TOKEN: 'new-access-token' })
-      );
-    });
+    expect(results).toHaveLength(1);
+    expect(results[0]).toEqual({ title: 'Audífonos JBL', price: 80000, link: 'http://ml.co/1' });
   });
 
-  describe('searchProducts', () => {
-    test('returns only items under MAX_PRECIO_COMPRA', async () => {
-      const axios = require('axios');
-      axios.get.mockResolvedValue({
-        data: {
-          results: [
-            { id: 'MCO1', title: 'Zapatos', price: 80000, category_id: 'MCO3530', permalink: 'http://ml.co/1' },
-            { id: 'MCO2', title: 'Zapatos Premium', price: 200000, category_id: 'MCO3530', permalink: 'http://ml.co/2' }
-          ]
-        }
-      });
+  test('returns [] when page has no matching selector (timeout)', async () => {
+    mockPage.waitForSelector.mockRejectedValue(new Error('Timeout'));
 
-      const { searchProducts } = require('../../shared/ml-client');
-      const results = await searchProducts('zapatos');
+    const { searchProducts } = require('../../shared/ml-client');
+    const results = await searchProducts('xyzproductonexiste');
 
-      expect(results).toHaveLength(1);
-      expect(results[0].id).toBe('MCO1');
-    });
-
-    test('excludes forbidden categories', async () => {
-      const axios = require('axios');
-      axios.get.mockResolvedValue({
-        data: {
-          results: [
-            { id: 'MCO3', title: 'Moto Honda', price: 80000, category_id: 'MCO1505', permalink: 'http://ml.co/3' },
-            { id: 'MCO4', title: 'Blusa', price: 60000, category_id: 'MCO3530', permalink: 'http://ml.co/4' }
-          ]
-        }
-      });
-
-      const { searchProducts } = require('../../shared/ml-client');
-      const results = await searchProducts('ropa');
-
-      expect(results).toHaveLength(1);
-      expect(results[0].id).toBe('MCO4');
-    });
-
-    test('calls ML API with correct params', async () => {
-      const axios = require('axios');
-      axios.get.mockResolvedValue({ data: { results: [] } });
-
-      const { searchProducts } = require('../../shared/ml-client');
-      await searchProducts('tenis');
-
-      expect(axios.get).toHaveBeenCalledWith(
-        'https://api.mercadolibre.com/sites/MCO/search',
-        expect.objectContaining({
-          params: expect.objectContaining({
-            q: 'tenis',
-            limit: 50,
-            shipping: 'me2'
-          })
-        })
-      );
-    });
-
-    test('throws and logs on API error', async () => {
-      const axios = require('axios');
-      const logger = require('../../shared/logger');
-      axios.get.mockRejectedValue(new Error('Network error'));
-
-      const { searchProducts } = require('../../shared/ml-client');
-      await expect(searchProducts('fallo')).rejects.toThrow('Network error');
-      expect(logger.error).toHaveBeenCalled();
-    });
+    expect(results).toEqual([]);
   });
 
-  describe('getItemDetails', () => {
-    test('returns item data with Authorization header', async () => {
-      const axios = require('axios');
-      axios.get.mockResolvedValue({
-        data: { id: 'MCO12345', title: 'Tenis Nike', price: 90000 }
-      });
+  test('returns [] on browser launch error — never throws', async () => {
+    const playwright = require('playwright');
+    playwright.chromium.launch.mockRejectedValue(new Error('Chromium crash'));
 
-      const { getItemDetails } = require('../../shared/ml-client');
-      const item = await getItemDetails('MCO12345');
+    const { searchProducts } = require('../../shared/ml-client');
+    const results = await searchProducts('algo');
 
-      expect(item.id).toBe('MCO12345');
-      expect(axios.get).toHaveBeenCalledWith(
-        'https://api.mercadolibre.com/items/MCO12345',
-        expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: 'Bearer current-access-token' })
-        })
-      );
-    });
+    expect(results).toEqual([]);
+  });
+
+  test('closes browser after search even on error', async () => {
+    mockPage.waitForSelector.mockRejectedValue(new Error('Timeout'));
+
+    const { searchProducts } = require('../../shared/ml-client');
+    await searchProducts('algo');
+
+    expect(mockBrowser.close).toHaveBeenCalled();
   });
 });
