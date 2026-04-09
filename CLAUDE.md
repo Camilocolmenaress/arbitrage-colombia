@@ -18,7 +18,7 @@ Logs: `~/Library/Logs/arbitrage-colombia.log`
 
 - Node.js 20+ · CommonJS
 - Supabase (base de datos compartida entre agentes)
-- MercadoLibre API con OAuth2 (client_credentials)
+- MercadoLibre API con OAuth2 (authorization_code — `scripts/ml-auth.js` para setup inicial)
 - google-trends-api (tendencias Colombia)
 - node-telegram-bot-api (alertas)
 - node-cron (schedules)
@@ -81,7 +81,7 @@ No esperar instrucción del usuario para hacer esto. Es obligatorio después de 
 | Phase 2 — Evergreen Validator | Tasks 11-13 | ✅ COMPLETA (31/31 tests) |
 | Phase 2 — Gap Finder | Tasks 14-16 | ✅ COMPLETA (42/42 tests) |
 | Phase 3 — Cron + PM2 | Tasks 17-19 | ✅ COMPLETA |
-| OAuth2 ML auth | — | ✅ COMPLETA (46/46 tests) |
+| OAuth2 ML auth (authorization_code) | — | ✅ COMPLETA (46/46 tests) |
 | macOS launchd migration | — | ✅ COMPLETA |
 
 ### Decisiones técnicas adicionales (Phase 2)

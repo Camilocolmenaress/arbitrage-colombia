@@ -1,6 +1,7 @@
 require('dotenv').config();
 const axios = require('axios');
 const logger = require('./logger');
+const { updateEnvFile } = require('./env-writer');
 
 const ML_BASE_URL = process.env.ML_BASE_URL || 'https://api.mercadolibre.com';
 const ML_SITE_ID = process.env.ML_SITE_ID || 'MCO';
@@ -20,18 +21,15 @@ function isForbiddenCategory(categoryId) {
   );
 }
 
-// Token cache: { value: string, expiresAt: number (ms timestamp) }
-let cachedToken = null;
+// Current access token — initialized from env, updated on refresh
+let currentToken = process.env.ML_ACCESS_TOKEN;
 
-async function getAccessToken() {
-  if (cachedToken && Date.now() < cachedToken.expiresAt) {
-    return cachedToken.value;
-  }
-
+async function refreshAccessToken() {
   const params = new URLSearchParams();
-  params.append('grant_type', 'client_credentials');
+  params.append('grant_type', 'refresh_token');
   params.append('client_id', process.env.ML_CLIENT_ID);
   params.append('client_secret', process.env.ML_CLIENT_SECRET);
+  params.append('refresh_token', process.env.ML_REFRESH_TOKEN);
 
   const response = await axios.post(
     `${ML_BASE_URL}/oauth/token`,
@@ -39,35 +37,49 @@ async function getAccessToken() {
     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
   );
 
-  const { access_token, expires_in } = response.data;
-  // Expire 60 seconds early to avoid using a token right at its boundary
-  cachedToken = {
-    value: access_token,
-    expiresAt: Date.now() + (expires_in - 60) * 1000
-  };
+  const { access_token, refresh_token } = response.data;
+  currentToken = access_token;
+  process.env.ML_ACCESS_TOKEN = access_token;
+  if (refresh_token) process.env.ML_REFRESH_TOKEN = refresh_token;
+
+  const toSave = { ML_ACCESS_TOKEN: access_token };
+  if (refresh_token) toSave.ML_REFRESH_TOKEN = refresh_token;
+  updateEnvFile(toSave);
 
   logger.info('ML token refreshed');
-  return cachedToken.value;
+  return access_token;
+}
+
+async function withRetryOnUnauthorized(requestFn) {
+  try {
+    return await requestFn(currentToken);
+  } catch (err) {
+    if (err.response && err.response.status === 401) {
+      const newToken = await refreshAccessToken();
+      return await requestFn(newToken);
+    }
+    throw err;
+  }
 }
 
 async function searchProducts(query, options = {}) {
   const { maxPrice = MAX_PRECIO, limit = 50 } = options;
 
   try {
-    const token = await getAccessToken();
-    const response = await axios.get(`${ML_BASE_URL}/sites/${ML_SITE_ID}/search`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params: {
-        q: query,
-        limit,
-        shipping: 'me2', // Mercado Envíos — ships nationwide including Bucaramanga
-        price_max: maxPrice
-      }
+    const results = await withRetryOnUnauthorized(async (token) => {
+      const response = await axios.get(`${ML_BASE_URL}/sites/${ML_SITE_ID}/search`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          q: query,
+          limit,
+          shipping: 'me2', // Mercado Envíos — ships nationwide including Bucaramanga
+          price_max: maxPrice
+        }
+      });
+      return response.data.results
+        .filter(item => item.price <= maxPrice)
+        .filter(item => !isForbiddenCategory(item.category_id));
     });
-
-    const results = response.data.results
-      .filter(item => item.price <= maxPrice)
-      .filter(item => !isForbiddenCategory(item.category_id));
 
     logger.info('ML search completed', { query, found: results.length });
     return results;
@@ -79,11 +91,12 @@ async function searchProducts(query, options = {}) {
 
 async function getItemDetails(itemId) {
   try {
-    const token = await getAccessToken();
-    const response = await axios.get(`${ML_BASE_URL}/items/${itemId}`, {
-      headers: { Authorization: `Bearer ${token}` }
+    return await withRetryOnUnauthorized(async (token) => {
+      const response = await axios.get(`${ML_BASE_URL}/items/${itemId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
     });
-    return response.data;
   } catch (err) {
     logger.error('ML getItemDetails failed', { itemId, error: err.message });
     throw err;

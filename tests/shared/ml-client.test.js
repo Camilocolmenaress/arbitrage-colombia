@@ -1,4 +1,5 @@
 jest.mock('axios');
+jest.mock('../../shared/env-writer');
 jest.mock('../../shared/logger', () => ({
   info: jest.fn(),
   warn: jest.fn(),
@@ -14,36 +15,13 @@ describe('ml-client', () => {
     process.env.MAX_PRECIO_COMPRA = '150000';
     process.env.ML_CLIENT_ID = 'test-client-id';
     process.env.ML_CLIENT_SECRET = 'test-client-secret';
+    process.env.ML_ACCESS_TOKEN = 'current-access-token';
+    process.env.ML_REFRESH_TOKEN = 'current-refresh-token';
   });
 
-  // Reusable helper: mock the OAuth token endpoint
-  function mockToken(axios) {
-    axios.post.mockResolvedValue({
-      data: { access_token: 'test-token-abc', expires_in: 21600 }
-    });
-  }
-
-  describe('OAuth token', () => {
-    test('fetches token using client credentials grant', async () => {
+  describe('Bearer token from env', () => {
+    test('attaches ML_ACCESS_TOKEN as Bearer header to search requests', async () => {
       const axios = require('axios');
-      mockToken(axios);
-      axios.get.mockResolvedValue({ data: { results: [] } });
-
-      const { searchProducts } = require('../../shared/ml-client');
-      await searchProducts('zapatos');
-
-      expect(axios.post).toHaveBeenCalledWith(
-        'https://api.mercadolibre.com/oauth/token',
-        expect.any(Object), // URLSearchParams body
-        expect.objectContaining({
-          headers: expect.objectContaining({ 'Content-Type': 'application/x-www-form-urlencoded' })
-        })
-      );
-    });
-
-    test('attaches Authorization: Bearer header to search requests', async () => {
-      const axios = require('axios');
-      mockToken(axios);
       axios.get.mockResolvedValue({ data: { results: [] } });
 
       const { searchProducts } = require('../../shared/ml-client');
@@ -52,46 +30,81 @@ describe('ml-client', () => {
       expect(axios.get).toHaveBeenCalledWith(
         expect.stringContaining('/search'),
         expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: 'Bearer test-token-abc' })
+          headers: expect.objectContaining({ Authorization: 'Bearer current-access-token' })
         })
       );
     });
 
-    test('caches token — only one POST for multiple requests', async () => {
+    test('attaches ML_ACCESS_TOKEN as Bearer header to item requests', async () => {
       const axios = require('axios');
-      mockToken(axios);
-      axios.get.mockResolvedValue({ data: { results: [] } });
+      axios.get.mockResolvedValue({ data: { id: 'MCO12345', title: 'Tenis', price: 90000 } });
+
+      const { getItemDetails } = require('../../shared/ml-client');
+      await getItemDetails('MCO12345');
+
+      expect(axios.get).toHaveBeenCalledWith(
+        expect.stringContaining('/items/MCO12345'),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer current-access-token' })
+        })
+      );
+    });
+  });
+
+  describe('401 auto-refresh', () => {
+    test('on 401, refreshes token and retries with new token', async () => {
+      const axios = require('axios');
+      const error401 = new Error('Unauthorized');
+      error401.response = { status: 401 };
+
+      axios.get
+        .mockRejectedValueOnce(error401)
+        .mockResolvedValueOnce({ data: { results: [] } });
+
+      axios.post.mockResolvedValue({
+        data: { access_token: 'new-access-token', refresh_token: 'new-refresh-token' }
+      });
 
       const { searchProducts } = require('../../shared/ml-client');
-      await searchProducts('zapatos');
-      await searchProducts('ropa');
+      const results = await searchProducts('zapatos');
 
-      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(axios.get).toHaveBeenCalledTimes(2);
+      expect(axios.get).toHaveBeenLastCalledWith(
+        expect.stringContaining('/search'),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer new-access-token' })
+        })
+      );
+      expect(results).toEqual([]);
     });
 
-    test('refreshes token when expired', async () => {
+    test('on 401, saves new tokens to .env', async () => {
       const axios = require('axios');
-      mockToken(axios);
-      axios.get.mockResolvedValue({ data: { results: [] } });
+      const { updateEnvFile } = require('../../shared/env-writer');
 
-      const now = Date.now();
-      jest.spyOn(Date, 'now')
-        .mockReturnValueOnce(now)              // set expiresAt on first fetch
-        .mockReturnValueOnce(now + 22000000);  // check on second request → expired
+      const error401 = new Error('Unauthorized');
+      error401.response = { status: 401 };
+
+      axios.get
+        .mockRejectedValueOnce(error401)
+        .mockResolvedValueOnce({ data: { results: [] } });
+
+      axios.post.mockResolvedValue({
+        data: { access_token: 'new-access-token', refresh_token: 'new-refresh-token' }
+      });
 
       const { searchProducts } = require('../../shared/ml-client');
       await searchProducts('zapatos');
-      await searchProducts('ropa');
 
-      expect(axios.post).toHaveBeenCalledTimes(2);
-      jest.restoreAllMocks();
+      expect(updateEnvFile).toHaveBeenCalledWith(
+        expect.objectContaining({ ML_ACCESS_TOKEN: 'new-access-token' })
+      );
     });
   });
 
   describe('searchProducts', () => {
     test('returns only items under MAX_PRECIO_COMPRA', async () => {
       const axios = require('axios');
-      mockToken(axios);
       axios.get.mockResolvedValue({
         data: {
           results: [
@@ -110,7 +123,6 @@ describe('ml-client', () => {
 
     test('excludes forbidden categories', async () => {
       const axios = require('axios');
-      mockToken(axios);
       axios.get.mockResolvedValue({
         data: {
           results: [
@@ -129,7 +141,6 @@ describe('ml-client', () => {
 
     test('calls ML API with correct params', async () => {
       const axios = require('axios');
-      mockToken(axios);
       axios.get.mockResolvedValue({ data: { results: [] } });
 
       const { searchProducts } = require('../../shared/ml-client');
@@ -149,7 +160,6 @@ describe('ml-client', () => {
 
     test('throws and logs on API error', async () => {
       const axios = require('axios');
-      mockToken(axios);
       const logger = require('../../shared/logger');
       axios.get.mockRejectedValue(new Error('Network error'));
 
@@ -162,7 +172,6 @@ describe('ml-client', () => {
   describe('getItemDetails', () => {
     test('returns item data with Authorization header', async () => {
       const axios = require('axios');
-      mockToken(axios);
       axios.get.mockResolvedValue({
         data: { id: 'MCO12345', title: 'Tenis Nike', price: 90000 }
       });
@@ -174,7 +183,7 @@ describe('ml-client', () => {
       expect(axios.get).toHaveBeenCalledWith(
         'https://api.mercadolibre.com/items/MCO12345',
         expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: 'Bearer test-token-abc' })
+          headers: expect.objectContaining({ Authorization: 'Bearer current-access-token' })
         })
       );
     });
