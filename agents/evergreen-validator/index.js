@@ -14,11 +14,19 @@ async function run() {
     return;
   }
 
+  // Deduplicate by nombre before enrichment (multiple keywords can return the same product)
+  const seen = new Set();
+  const unique = mlProducts.filter(p => {
+    if (seen.has(p.nombre)) return false;
+    seen.add(p.nombre);
+    return true;
+  });
+
   const enriched = await Promise.all(
-    mlProducts.map(async product => ({
+    unique.map(async product => ({
       nombre: product.nombre,
       ventas_historicas: product.ventas_historicas,
-      estabilidad_tendencia: await getTrendStability(product.nombre)
+      estabilidad_tendencia: await getTrendStability(product.keyword || product.nombre)
     }))
   );
 

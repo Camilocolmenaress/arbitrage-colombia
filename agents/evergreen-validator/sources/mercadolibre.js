@@ -18,7 +18,8 @@ async function getEvergreenFromML(keyword) {
       .filter(item => (item.sold_quantity || 0) >= MIN_VENTAS)
       .map(item => ({
         nombre: item.title,
-        ventas_historicas: item.sold_quantity || 0
+        ventas_historicas: item.sold_quantity || 0,
+        keyword // propagate source keyword for trend stability lookup
       }));
 
     logger.info('ML evergreen fetched', { keyword, count: results.length });
@@ -31,6 +32,7 @@ async function getEvergreenFromML(keyword) {
 
 async function getAllEvergreenFromML() {
   const settled = await Promise.allSettled(EVERGREEN_KEYWORDS.map(kw => getEvergreenFromML(kw)));
+  // getEvergreenFromML always returns [] on error, so fulfilled filter is a safety net for future callers
   return settled
     .filter(r => r.status === 'fulfilled')
     .flatMap(r => r.value);

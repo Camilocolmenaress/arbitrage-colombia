@@ -64,7 +64,8 @@ describe('evergreen-validator/sources/google-trends', () => {
     const { getTrendStability } = require('../../agents/evergreen-validator/sources/google-trends');
     const score = await getTrendStability('mochila');
 
-    expect(score).toBeGreaterThanOrEqual(0);
+    // Values 78-85 have ~3% CV → stability ~97; assert tightly
+    expect(score).toBeGreaterThan(90);
     expect(score).toBeLessThanOrEqual(100);
   });
 
@@ -94,7 +95,7 @@ describe('evergreen-validator/index', () => {
 
     jest.doMock('../../agents/evergreen-validator/sources/mercadolibre', () => ({
       getAllEvergreenFromML: jest.fn().mockResolvedValue([
-        { nombre: 'Mochila Totto', ventas_historicas: 400 }
+        { nombre: 'Mochila Totto', ventas_historicas: 400, keyword: 'mochila' }
       ])
     }));
     jest.doMock('../../agents/evergreen-validator/sources/google-trends', () => ({
