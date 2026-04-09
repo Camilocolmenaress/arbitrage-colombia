@@ -35,34 +35,25 @@ async function searchProducts(query, options = {}) {
       'Accept-Language': 'es-CO,es;q=0.9'
     });
 
-    // Try both URL formats — ML Colombia uses different patterns
-    const urls = [
-      `https://listado.mercadolibre.com.co/${encodeURIComponent(query)}`,
-      `https://www.mercadolibre.com.co/`
-    ];
+    // Simulate human search — avoids bot detection on listado subdomain
+    await page.goto('https://www.mercadolibre.com.co/');
+    await page.waitForLoadState('networkidle');
+    logger.info('ML page title: ' + await page.title());
 
-    let selectorFound = false;
-    for (const url of urls) {
-      await page.goto(url);
-      await page.waitForLoadState('networkidle');
-      logger.info('ML page title: ' + await page.title());
+    // Always capture page state for debugging
+    try { await page.screenshot({ path: '/tmp/ml-debug.png' }); } catch (_) {}
 
-      // Always capture page state for debugging
-      try { await page.screenshot({ path: '/tmp/ml-debug.png' }); } catch (_) {}
+    const inputSelector = 'input[name="as_word"], input[type="search"], #cb1-edit';
+    await page.waitForSelector(inputSelector, { timeout: 10000 });
+    await page.fill(inputSelector, query);
+    await page.keyboard.press('Enter');
 
-      try {
-        await page.waitForSelector('li.ui-search-layout__item', { timeout: 15000 });
-        selectorFound = true;
-        break;
-      } catch {
-        logger.warn('ML scrape: selector not found', { url, query });
-      }
-    }
-
-    if (!selectorFound) {
+    try {
+      await page.waitForSelector('li.ui-search-layout__item', { timeout: 15000 });
+    } catch {
       try {
         const bodyHtml = await page.evaluate(() => document.body.innerHTML.substring(0, 500));
-        logger.warn('ML scrape: no results on any URL', { query, html: bodyHtml });
+        logger.warn('ML scrape: no results after search', { query, html: bodyHtml });
       } catch (_) {}
       return [];
     }

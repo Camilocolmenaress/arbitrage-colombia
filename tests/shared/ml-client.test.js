@@ -23,8 +23,10 @@ describe('ml-client (Playwright scraper)', () => {
     mockPage = {
       goto: jest.fn().mockResolvedValue(null),
       waitForLoadState: jest.fn().mockResolvedValue(null),
-      title: jest.fn().mockResolvedValue('MercadoLibre Colombia'),
+      title: jest.fn().mockResolvedValue('Mercado Libre Colombia'),
       waitForSelector: jest.fn().mockResolvedValue(null),
+      fill: jest.fn().mockResolvedValue(null),
+      keyboard: { press: jest.fn().mockResolvedValue(null) },
       $$eval: jest.fn().mockResolvedValue([]),
       evaluate: jest.fn().mockResolvedValue('<div>debug html</div>'),
       screenshot: jest.fn().mockResolvedValue(null),
@@ -40,13 +42,11 @@ describe('ml-client (Playwright scraper)', () => {
     playwright.chromium.launch.mockResolvedValue(mockBrowser);
   });
 
-  test('navigates to encoded listado.mercadolibre.com.co URL', async () => {
+  test('navigates to www.mercadolibre.com.co homepage', async () => {
     const { searchProducts } = require('../../shared/ml-client');
     await searchProducts('audífonos bluetooth');
 
-    expect(mockPage.goto).toHaveBeenCalledWith(
-      'https://listado.mercadolibre.com.co/aud%C3%ADfonos%20bluetooth'
-    );
+    expect(mockPage.goto).toHaveBeenCalledWith('https://www.mercadolibre.com.co/');
   });
 
   test('waits for networkidle after page load', async () => {
@@ -72,14 +72,36 @@ describe('ml-client (Playwright scraper)', () => {
     expect(mockPage.screenshot).toHaveBeenCalledWith({ path: '/tmp/ml-debug.png' });
   });
 
-  test('waits for li.ui-search-layout__item with 15s timeout', async () => {
+  test('waits for search input with multi-selector', async () => {
     const { searchProducts } = require('../../shared/ml-client');
     await searchProducts('celular');
 
     expect(mockPage.waitForSelector).toHaveBeenCalledWith(
-      'li.ui-search-layout__item',
-      expect.objectContaining({ timeout: 15000 })
+      'input[name="as_word"], input[type="search"], #cb1-edit',
+      expect.objectContaining({ timeout: 10000 })
     );
+  });
+
+  test('fills search input with query and presses Enter', async () => {
+    const { searchProducts } = require('../../shared/ml-client');
+    await searchProducts('audífonos bluetooth');
+
+    expect(mockPage.fill).toHaveBeenCalledWith(
+      'input[name="as_word"], input[type="search"], #cb1-edit',
+      'audífonos bluetooth'
+    );
+    expect(mockPage.keyboard.press).toHaveBeenCalledWith('Enter');
+  });
+
+  test('waits for li.ui-search-layout__item with 15s timeout after search', async () => {
+    const { searchProducts } = require('../../shared/ml-client');
+    await searchProducts('celular');
+
+    // The second waitForSelector call is for results (first is for input)
+    const calls = mockPage.waitForSelector.mock.calls;
+    const resultCall = calls.find(c => c[0] === 'li.ui-search-layout__item');
+    expect(resultCall).toBeDefined();
+    expect(resultCall[1]).toMatchObject({ timeout: 15000 });
   });
 
   test('returns array of { title, price, link } filtered by maxPrice', async () => {
@@ -95,15 +117,16 @@ describe('ml-client (Playwright scraper)', () => {
     expect(results[0]).toEqual({ title: 'Audífonos JBL', price: 80000, link: 'http://ml.co/1' });
   });
 
-  test('returns [] when selector not found on any URL (tries both)', async () => {
-    // Reject on every waitForSelector call → both URLs tried, both fail
-    mockPage.waitForSelector.mockRejectedValue(new Error('Timeout'));
+  test('returns [] when results selector not found', async () => {
+    // input found, but results selector times out
+    mockPage.waitForSelector
+      .mockResolvedValueOnce(null)  // input selector
+      .mockRejectedValueOnce(new Error('Timeout')); // results selector
 
     const { searchProducts } = require('../../shared/ml-client');
     const results = await searchProducts('xyzproductonexiste');
 
     expect(results).toEqual([]);
-    expect(mockPage.waitForSelector).toHaveBeenCalledTimes(2); // tried both URLs
   });
 
   test('launches chromium with stealth anti-bot args', async () => {
@@ -146,7 +169,9 @@ describe('ml-client (Playwright scraper)', () => {
   });
 
   test('closes browser after search even on error', async () => {
-    mockPage.waitForSelector.mockRejectedValue(new Error('Timeout'));
+    mockPage.waitForSelector
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('Timeout'));
 
     const { searchProducts } = require('../../shared/ml-client');
     await searchProducts('algo');
