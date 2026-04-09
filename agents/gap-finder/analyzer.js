@@ -3,7 +3,7 @@ const { searchProducts } = require('../../shared/ml-client');
 const logger = require('../../shared/logger');
 
 const MAX_PRECIO = parseInt(process.env.MAX_PRECIO_COMPRA || '150000', 10);
-const MIN_GAP = parseFloat(process.env.MIN_GAP_PORCENTAJE || '40');
+const MIN_GAP = parseFloat(process.env.MIN_GAP_PORCENTAJE || '50');
 
 async function analyzeProduct(nombre) {
   try {
@@ -18,7 +18,7 @@ async function analyzeProduct(nombre) {
     const precioCompra = cheapestItem.price;
     const precioPromedio = items.reduce((s, i) => s + i.price, 0) / items.length;
     const gapPorcentaje = parseFloat(
-      (((precioPromedio - precioCompra) / precioCompra) * 100).toFixed(2)
+      (((precioPromedio - precioCompra) / precioPromedio) * 100).toFixed(2)
     );
 
     if (gapPorcentaje < MIN_GAP) {
