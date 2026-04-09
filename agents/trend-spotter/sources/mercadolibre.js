@@ -2,10 +2,13 @@ require('dotenv').config();
 const { searchProducts } = require('../../../shared/ml-client');
 const logger = require('../../../shared/logger');
 
-// Seed keywords to discover what's trending on ML Colombia
 const SEED_KEYWORDS = [
-  'audífonos', 'zapatos', 'ropa', 'celular', 'mochila',
-  'silla gamer', 'termo', 'cámara', 'teclado', 'perfume'
+  'audífonos bluetooth', 'consola videojuegos',
+  'celular samsung', 'iphone', 'pc gamer',
+  'silla gamer', 'teclado mecánico', 'gorra',
+  'smartwatch', 'cargador inalámbrico',
+  'parlante bluetooth', 'tablet', 'iPad',
+  'case celular', 'mouse gamer'
 ];
 
 async function getTrendingFromML(keyword) {
@@ -14,7 +17,7 @@ async function getTrendingFromML(keyword) {
 
     const results = items.map(item => ({
       nombre: item.title,
-      score: item.sold_quantity || 0
+      score: 0 // sold_quantity not available from web scraping
     }));
 
     logger.info('ML trending fetched', { keyword, count: results.length });

@@ -63,17 +63,17 @@ describe('trend-spotter/sources/mercadolibre', () => {
   test('getTrendingFromML returns array of {nombre, score} objects', async () => {
     const { searchProducts: sp } = require('../../shared/ml-client');
     sp.mockResolvedValue([
-      { title: 'Audífonos Bluetooth', sold_quantity: 320, id: 'MCO1' },
-      { title: 'Termo Stanley', sold_quantity: 210, id: 'MCO2' }
+      { title: 'Audífonos Bluetooth', price: 80000, link: 'http://ml.co/1' },
+      { title: 'Termo Stanley', price: 65000, link: 'http://ml.co/2' }
     ]);
 
     const { getTrendingFromML } = require('../../agents/trend-spotter/sources/mercadolibre');
-    const results = await getTrendingFromML('audífonos');
+    const results = await getTrendingFromML('audífonos bluetooth');
 
     expect(results).toHaveLength(2);
     expect(results[0]).toHaveProperty('nombre');
     expect(results[0]).toHaveProperty('score');
-    expect(results[0].score).toBe(320);
+    expect(results[0].score).toBe(0);
   });
 
   test('returns empty array on ML error', async () => {
