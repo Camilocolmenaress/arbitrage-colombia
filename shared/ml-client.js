@@ -25,19 +25,19 @@ async function searchProducts(query, options = {}) {
     await page.goto(url);
 
     try {
-      await page.waitForSelector('.ui-search-result', { timeout: 10000 });
+      await page.waitForSelector('li.ui-search-layout__item', { timeout: 10000 });
     } catch {
       logger.warn('ML scrape: no results found', { query });
       return [];
     }
 
-    const items = await page.$$eval('.ui-search-result', (els) =>
+    const items = await page.$$eval('li.ui-search-layout__item', (els) =>
       els.map(el => {
-        const titleEl =
-          el.querySelector('.poly-component__title') ||
-          el.querySelector('h2.ui-search-item__title');
+        const titleEl = el.querySelector('.poly-component__title');
         const priceEl = el.querySelector('.andes-money-amount__fraction');
-        const linkEl = el.querySelector('a.ui-search-result__content');
+        const linkEl =
+          el.querySelector('a.poly-component__title') ||
+          el.querySelector('a[href*="articulo.mercadolibre.com.co"]');
 
         const title = titleEl?.textContent?.trim() || '';
         const priceText = (priceEl?.textContent?.trim() || '0').replace(/\./g, '');
@@ -51,6 +51,16 @@ async function searchProducts(query, options = {}) {
     const results = items
       .filter(item => item.price <= maxPrice)
       .slice(0, 50);
+
+    if (results.length === 0) {
+      try {
+        const bodyHtml = await page.evaluate(() => document.body.innerHTML.substring(0, 500));
+        logger.warn('ML scrape: 0 results — debug HTML', { query, html: bodyHtml });
+        await page.screenshot({ path: '/tmp/ml-debug.png' });
+      } catch (_) {
+        // debug step is best-effort — don't fail the scrape over it
+      }
+    }
 
     logger.info('ML scrape completed', { query, found: results.length });
     return results;

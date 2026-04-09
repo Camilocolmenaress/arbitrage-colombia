@@ -20,6 +20,8 @@ describe('ml-client (Playwright scraper)', () => {
       goto: jest.fn().mockResolvedValue(null),
       waitForSelector: jest.fn().mockResolvedValue(null),
       $$eval: jest.fn().mockResolvedValue([]),
+      evaluate: jest.fn().mockResolvedValue('<div>debug html</div>'),
+      screenshot: jest.fn().mockResolvedValue(null),
       close: jest.fn().mockResolvedValue(null)
     };
     mockBrowser = {
@@ -37,6 +39,30 @@ describe('ml-client (Playwright scraper)', () => {
 
     expect(mockPage.goto).toHaveBeenCalledWith(
       'https://listado.mercadolibre.com.co/aud%C3%ADfonos%20bluetooth'
+    );
+  });
+
+  test('waits for li.ui-search-layout__item selector', async () => {
+    const { searchProducts } = require('../../shared/ml-client');
+    await searchProducts('celular');
+
+    expect(mockPage.waitForSelector).toHaveBeenCalledWith(
+      'li.ui-search-layout__item',
+      expect.objectContaining({ timeout: 10000 })
+    );
+  });
+
+  test('logs debug HTML and takes screenshot when 0 results returned', async () => {
+    const logger = require('../../shared/logger');
+    const { searchProducts } = require('../../shared/ml-client');
+    // $$eval returns [] by default → triggers debug path
+    await searchProducts('algo');
+
+    expect(mockPage.evaluate).toHaveBeenCalled();
+    expect(mockPage.screenshot).toHaveBeenCalledWith({ path: '/tmp/ml-debug.png' });
+    expect(logger.warn).toHaveBeenCalledWith(
+      'ML scrape: 0 results — debug HTML',
+      expect.objectContaining({ query: 'algo' })
     );
   });
 
