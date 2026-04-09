@@ -4,27 +4,26 @@ jest.mock('../../shared/logger', () => ({
 }));
 
 describe('evergreen-validator/sources/mercadolibre', () => {
-  const MIN_SALES = 10;
-
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
-    process.env.MIN_VENTAS_HISTORICAS = String(MIN_SALES);
+    process.env.MIN_VENTAS_HISTORICAS = '10';
   });
 
-  test('getEvergreenFromML returns only products with sufficient sales', async () => {
+  test('getEvergreenFromML returns all scraped products (no sold_quantity filter)', async () => {
     const { searchProducts } = require('../../shared/ml-client');
     searchProducts.mockResolvedValue([
-      { title: 'Mochila', sold_quantity: 500 },
-      { title: 'Llavero', sold_quantity: 3 },
-      { title: 'Camiseta', sold_quantity: 150 }
+      { title: 'Mochila', price: 80000, link: 'http://ml.co/1' },
+      { title: 'Silla Gamer', price: 120000, link: 'http://ml.co/2' }
     ]);
 
     const { getEvergreenFromML } = require('../../agents/evergreen-validator/sources/mercadolibre');
     const results = await getEvergreenFromML('mochila');
 
     expect(results).toHaveLength(2);
-    expect(results.every(r => r.ventas_historicas >= MIN_SALES)).toBe(true);
+    expect(results[0]).toHaveProperty('nombre', 'Mochila');
+    expect(results[0]).toHaveProperty('ventas_historicas', 0);
+    expect(results[0]).toHaveProperty('keyword', 'mochila');
   });
 
   test('returns empty array on ML error', async () => {
