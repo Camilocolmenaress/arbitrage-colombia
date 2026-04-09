@@ -1,6 +1,9 @@
 require('dotenv').config();
-const { chromium } = require('playwright');
+const { chromium } = require('playwright-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const logger = require('./logger');
+
+chromium.use(StealthPlugin());
 
 const MAX_PRECIO = parseInt(process.env.MAX_PRECIO_COMPRA || '150000', 10);
 
@@ -18,8 +21,19 @@ async function searchProducts(query, options = {}) {
   try {
     await new Promise(r => setTimeout(r, getDelay()));
 
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-web-security'
+      ]
+    });
     const page = await browser.newPage();
+    await page.setExtraHTTPHeaders({
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'es-CO,es;q=0.9'
+    });
 
     // Try both URL formats — ML Colombia uses different patterns
     const urls = [

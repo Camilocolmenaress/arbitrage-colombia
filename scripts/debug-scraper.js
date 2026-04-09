@@ -8,7 +8,10 @@
  *   node scripts/debug-scraper.js "celular samsung"
  */
 require('dotenv').config();
-const { chromium } = require('playwright');
+const { chromium } = require('playwright-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+
+chromium.use(StealthPlugin());
 
 const QUERY = process.argv[2] || 'audífonos';
 const SCREENSHOT_PATH = '/tmp/ml-debug.png';
@@ -22,11 +25,22 @@ const URLS = [
   console.log(`\n=== ML Scraper Debug ===`);
   console.log(`Query: "${QUERY}"\n`);
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-web-security'
+    ]
+  });
 
   for (const url of URLS) {
     console.log(`--- Trying URL: ${url}`);
     const page = await browser.newPage();
+    await page.setExtraHTTPHeaders({
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'es-CO,es;q=0.9'
+    });
 
     try {
       await page.goto(url);

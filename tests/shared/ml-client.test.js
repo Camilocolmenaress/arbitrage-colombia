@@ -1,6 +1,10 @@
-jest.mock('playwright', () => ({
-  chromium: { launch: jest.fn() }
+jest.mock('playwright-extra', () => ({
+  chromium: {
+    launch: jest.fn(),
+    use: jest.fn()
+  }
 }));
+jest.mock('puppeteer-extra-plugin-stealth', () => jest.fn(() => ({})));
 jest.mock('../../shared/logger', () => ({
   info: jest.fn(),
   warn: jest.fn(),
@@ -24,6 +28,7 @@ describe('ml-client (Playwright scraper)', () => {
       $$eval: jest.fn().mockResolvedValue([]),
       evaluate: jest.fn().mockResolvedValue('<div>debug html</div>'),
       screenshot: jest.fn().mockResolvedValue(null),
+      setExtraHTTPHeaders: jest.fn().mockResolvedValue(null),
       close: jest.fn().mockResolvedValue(null)
     };
     mockBrowser = {
@@ -31,7 +36,7 @@ describe('ml-client (Playwright scraper)', () => {
       close: jest.fn().mockResolvedValue(null)
     };
 
-    const playwright = require('playwright');
+    const playwright = require('playwright-extra');
     playwright.chromium.launch.mockResolvedValue(mockBrowser);
   });
 
@@ -101,8 +106,37 @@ describe('ml-client (Playwright scraper)', () => {
     expect(mockPage.waitForSelector).toHaveBeenCalledTimes(2); // tried both URLs
   });
 
+  test('launches chromium with stealth anti-bot args', async () => {
+    const playwright = require('playwright-extra');
+    const { searchProducts } = require('../../shared/ml-client');
+    await searchProducts('algo');
+
+    expect(playwright.chromium.launch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headless: true,
+        args: expect.arrayContaining([
+          '--no-sandbox',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-web-security'
+        ])
+      })
+    );
+  });
+
+  test('sets custom User-Agent and Accept-Language headers', async () => {
+    const { searchProducts } = require('../../shared/ml-client');
+    await searchProducts('algo');
+
+    expect(mockPage.setExtraHTTPHeaders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'User-Agent': expect.stringContaining('Mozilla/5.0'),
+        'Accept-Language': 'es-CO,es;q=0.9'
+      })
+    );
+  });
+
   test('returns [] on browser launch error — never throws', async () => {
-    const playwright = require('playwright');
+    const playwright = require('playwright-extra');
     playwright.chromium.launch.mockRejectedValue(new Error('Chromium crash'));
 
     const { searchProducts } = require('../../shared/ml-client');
